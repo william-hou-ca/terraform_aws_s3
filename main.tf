@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 provider "aws" {
-  alias = "rep_dst"
+  alias  = "rep_dst"
   region = var.s3_replication_dst_region
 }
 ####################################################################################
@@ -120,15 +120,15 @@ resource "aws_s3_bucket" "this" {
       role = aws_iam_role.replication[replication_configuration.value.dst_bucket_id].arn
 
       dynamic "rules" {
-        for_each = jsondecode(contains(keys(replication_configuration.value), "rules") ? jsonencode(replication_configuration.value.rules) : jsonencode([{}]) )
+        for_each = jsondecode(contains(keys(replication_configuration.value), "rules") ? jsonencode(replication_configuration.value.rules) : jsonencode([{}]))
 
         content {
-          id = rules.value.id
+          id     = rules.value.id
           prefix = rules.value.prefix
           status = rules.value.status
 
           destination {
-            bucket = aws_s3_bucket.destination[replication_configuration.value.dst_bucket_id].arn
+            bucket        = aws_s3_bucket.destination[replication_configuration.value.dst_bucket_id].arn
             storage_class = rules.value.storage_class
           }
         }
@@ -136,7 +136,7 @@ resource "aws_s3_bucket" "this" {
     }
   }
 
-  #Enable Default Server Side Encryption
+  # Enable Default Server Side Encryption
   dynamic "server_side_encryption_configuration" {
     for_each = contains(keys(var.s3_buckets[count.index]), "server_side_encryption_configuration") ? [var.s3_buckets[count.index].server_side_encryption_configuration] : []
 
@@ -144,7 +144,7 @@ resource "aws_s3_bucket" "this" {
       rule {
         apply_server_side_encryption_by_default {
           #kms_master_key_id = aws_kms_key.mykey.arn
-          sse_algorithm     = "aws:kms"
+          sse_algorithm = "aws:kms"
         }
       }
     }
@@ -161,7 +161,7 @@ resource "aws_s3_bucket" "this" {
 resource "aws_s3_bucket" "logging" {
   count = length(var.s3_buckets_logging)
 
-  
+
   bucket_prefix = "${var.s3_buckets_logging[count.index].bucket_name}-"
   force_destroy = var.s3_buckets_force_destroy
 
@@ -296,11 +296,11 @@ resource "aws_iam_role_policy_attachment" "replication" {
 
 resource "aws_s3_bucket" "destination" {
   provider = aws.rep_dst
-  count = length(var.s3_buckets_destination)
+  count    = length(var.s3_buckets_destination)
 
   bucket_prefix = "${var.s3_buckets_destination[count.index].bucket_name}-"
   force_destroy = var.s3_buckets_force_destroy
-  
+
   versioning {
     enabled = true
   }

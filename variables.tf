@@ -9,17 +9,17 @@ variable "s3_buckets_logging" {
 }
 
 variable "s3_replication_dst_region" {
-  type = string
+  type        = string
   description = "define which region buckets are replicated to"
 }
 
 variable "s3_buckets_destination" {
-  type = list(any)
+  type        = list(any)
   description = "replication destination buckets"
 }
 
 variable "s3_buckets_force_destroy" {
-  type = string
+  type        = string
   description = "force destroy s3 buckets when they are not empty. Pay attention to this parameter!!!!!!!"
-  default = false
+  default     = false
 }

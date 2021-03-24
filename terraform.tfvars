@@ -62,9 +62,9 @@ s3_buckets = [
       dst_bucket_id = 0 # index number of var.s3_buckets_destination
       rules = [
         {
-          id = "rule-1"
-          prefix = "tmp"
-          status = "Enabled"
+          id            = "rule-1"
+          prefix        = "tmp"
+          status        = "Enabled"
           storage_class = "STANDARD"
         },
       ]
@@ -92,7 +92,7 @@ s3_replication_dst_region = "us-east-1"
 
 s3_buckets_destination = [
   {
-    bucket_name = "tf-s3-test-rep-dst"
+    bucket_name       = "tf-s3-test-rep-dst"
     source_buckets_id = 0 # index id of var.s3_buckets
   },
 ]
