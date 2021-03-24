@@ -2,6 +2,10 @@ provider "aws" {
   region = "ca-central-1"
 }
 
+provider "aws" {
+  alias = "rep_dst"
+  region = var.s3_replication_dst_region
+}
 ####################################################################################
 #
 # create s3 buckets in accroding to the variable var.s3_buckets
@@ -14,6 +18,8 @@ resource "aws_s3_bucket" "this" {
 
   bucket_prefix = "${var.s3_buckets[count.index].bucket_name}-"
   acl           = var.s3_buckets[count.index].acl
+
+  force_destroy = var.s3_buckets_force_destroy
 
   tags = merge(var.s3_buckets[count.index].tags,
     {
@@ -105,6 +111,44 @@ resource "aws_s3_bucket" "this" {
       }
     }
   }
+
+  # Using replication configuration
+  dynamic "replication_configuration" {
+    for_each = contains(keys(var.s3_buckets[count.index]), "replication_configuration") ? [var.s3_buckets[count.index].replication_configuration] : []
+
+    content {
+      role = aws_iam_role.replication[replication_configuration.value.dst_bucket_id].arn
+
+      dynamic "rules" {
+        for_each = jsondecode(contains(keys(replication_configuration.value), "rules") ? jsonencode(replication_configuration.value.rules) : jsonencode([{}]) )
+
+        content {
+          id = rules.value.id
+          prefix = rules.value.prefix
+          status = rules.value.status
+
+          destination {
+            bucket = aws_s3_bucket.destination[replication_configuration.value.dst_bucket_id].arn
+            storage_class = rules.value.storage_class
+          }
+        }
+      }
+    }
+  }
+
+  #Enable Default Server Side Encryption
+  dynamic "server_side_encryption_configuration" {
+    for_each = contains(keys(var.s3_buckets[count.index]), "server_side_encryption_configuration") ? [var.s3_buckets[count.index].server_side_encryption_configuration] : []
+
+    content {
+      rule {
+        apply_server_side_encryption_by_default {
+          #kms_master_key_id = aws_kms_key.mykey.arn
+          sse_algorithm     = "aws:kms"
+        }
+      }
+    }
+  }
 }
 
 
@@ -117,8 +161,9 @@ resource "aws_s3_bucket" "this" {
 resource "aws_s3_bucket" "logging" {
   count = length(var.s3_buckets_logging)
 
-
+  
   bucket_prefix = "${var.s3_buckets_logging[count.index].bucket_name}-"
+  force_destroy = var.s3_buckets_force_destroy
 
   grant {
     type        = "Group"
@@ -170,4 +215,93 @@ resource "aws_s3_bucket_public_access_block" "logging" {
   ignore_public_acls      = contains(keys(var.s3_buckets_logging[count.index]), "public_access_block") ? lookup(var.s3_buckets_logging[count.index].public_access_block, "ignore_public_acls", true) : true
   restrict_public_buckets = contains(keys(var.s3_buckets_logging[count.index]), "public_access_block") ? lookup(var.s3_buckets_logging[count.index].public_access_block, "restrict_public_buckets", true) : true
 
+}
+
+####################################################################################
+#
+# create s3 replication destination buckets
+#
+####################################################################################
+
+resource "aws_iam_role" "replication" {
+  count = length(var.s3_buckets_destination)
+
+  name_prefix = "tf-iam-role-replication-"
+
+  assume_role_policy = <<POLICY
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "Service": "s3.amazonaws.com"
+      },
+      "Effect": "Allow",
+      "Sid": ""
+    }
+  ]
+}
+POLICY
+}
+
+resource "aws_iam_policy" "replication" {
+  count = length(var.s3_buckets_destination)
+
+  name_prefix = "tf-iam-role-policy-replication-"
+
+  policy = <<POLICY
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "s3:GetReplicationConfiguration",
+        "s3:ListBucket"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "${aws_s3_bucket.this[var.s3_buckets_destination[count.index].source_buckets_id].arn}"
+      ]
+    },
+    {
+      "Action": [
+        "s3:GetObjectVersion",
+        "s3:GetObjectVersionAcl"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "${aws_s3_bucket.this[var.s3_buckets_destination[count.index].source_buckets_id].arn}/*"
+      ]
+    },
+    {
+      "Action": [
+        "s3:ReplicateObject",
+        "s3:ReplicateDelete"
+      ],
+      "Effect": "Allow",
+      "Resource": "${aws_s3_bucket.destination[count.index].arn}/*"
+    }
+  ]
+}
+POLICY
+}
+
+resource "aws_iam_role_policy_attachment" "replication" {
+  count = length(var.s3_buckets_destination)
+
+  role       = aws_iam_role.replication[count.index].name
+  policy_arn = aws_iam_policy.replication[count.index].arn
+}
+
+resource "aws_s3_bucket" "destination" {
+  provider = aws.rep_dst
+  count = length(var.s3_buckets_destination)
+
+  bucket_prefix = "${var.s3_buckets_destination[count.index].bucket_name}-"
+  force_destroy = var.s3_buckets_force_destroy
+  
+  versioning {
+    enabled = true
+  }
 }

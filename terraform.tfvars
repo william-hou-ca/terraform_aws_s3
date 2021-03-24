@@ -34,7 +34,7 @@ s3_buckets = [
       mfa_delete = false
     }
     logging = {
-      target_bucket_id = 0
+      target_bucket_id = 0 #index number of var.s3_buckets_logging
       target_prefix    = "tf-s3-testlog"
     }
     lifecycle_rule = [
@@ -58,6 +58,18 @@ s3_buckets = [
         }
       }
     ]
+    replication_configuration = {
+      dst_bucket_id = 0 # index number of var.s3_buckets_destination
+      rules = [
+        {
+          id = "rule-1"
+          prefix = "tmp"
+          status = "Enabled"
+          storage_class = "STANDARD"
+        },
+      ]
+    }
+    server_side_encryption_configuration = "enabled"
   },
 ]
 
@@ -75,3 +87,14 @@ s3_buckets_logging = [
     }
   },
 ]
+
+s3_replication_dst_region = "us-east-1"
+
+s3_buckets_destination = [
+  {
+    bucket_name = "tf-s3-test-rep-dst"
+    source_buckets_id = 0 # index id of var.s3_buckets
+  },
+]
+
+s3_buckets_force_destroy = true
